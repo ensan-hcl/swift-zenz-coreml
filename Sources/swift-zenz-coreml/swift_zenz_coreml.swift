@@ -170,9 +170,18 @@ func main() async {
     guard let model else { fatalError("model not found") }
     let tokenizer = await loadTokenizer()
     guard let tokenizer else { fatalError("tokenizer not found") }
-    // ニホンゴ（Japanese in Katakana Form）→日本語（Japanese in Kanji form）
-    let start = Date()
-    let predictedSentence = greedyPredict(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer)
-    print(predictedSentence)
-    print("time:", Date().timeIntervalSince(start))
+    do {
+        // ニホンゴ（Japanese in Katakana Form）→日本語（Japanese in Kanji form）
+        let start = Date()
+        let predictedSentence = greedyPredict(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer)
+        print(predictedSentence)
+        print("time:", Date().timeIntervalSince(start))
+    }
+    do {
+        // カンコクゴヲベンキョウスル（'Study Korean' in Katakana Form）→韓国語を勉強する（'Study Korean' in Kanji form）
+        let start = Date()
+        let predictedSentence = greedyPredict(text: "\u{EE00}カンコクゴヲベンキョウスル\u{EE01}", model: model, tokenizer: tokenizer)
+        print(predictedSentence)
+        print("time:", Date().timeIntervalSince(start))
+    }
 }
