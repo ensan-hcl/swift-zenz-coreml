@@ -13,8 +13,12 @@ func loadModel() -> zenz_v1? {
 
 // Load the Tokenizer model
 func loadTokenizer() async -> Tokenizer? {
+    guard let modelFolder = Bundle.module.resourceURL else {
+        print("Model Folder was not found")
+        return nil
+    }
     do {
-        return try await AutoTokenizer.from(modelFolder: Bundle.module.resourceURL!)
+        return try await AutoTokenizer.from(modelFolder: modelFolder)
     } catch {
         fatalError(error.localizedDescription)
     }
@@ -67,7 +71,7 @@ func predict(text: String, model: zenz_v1, tokenizer: Tokenizer) -> [String] {
             var logitValues = [Float]()
             // get argMax
             let maxId = (0..<6000).max {
-                logits[[batchID, i, $0] as [NSNumber]].floatValue > logits[[0, i, $1] as [NSNumber]].floatValue
+                logits[[batchID, i, $0] as [NSNumber]].floatValue < logits[[0, i, $1] as [NSNumber]].floatValue
             } ?? 0
             predictedTokenIDs[batchID].append(maxId)
         }
