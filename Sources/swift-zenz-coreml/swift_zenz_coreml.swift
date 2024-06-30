@@ -13,8 +13,12 @@ func loadModel() -> zenz_v1? {
 
 // Load the Tokenizer model
 func loadTokenizer() async -> Tokenizer? {
+    guard let modelFolder = Bundle.module.resourceURL else {
+        print("Model Folder was not found")
+        return nil
+    }
     do {
-        return try await AutoTokenizer.from(modelFolder: Bundle.module.resourceURL!)
+        return try await AutoTokenizer.from(modelFolder: modelFolder)
     } catch {
         fatalError(error.localizedDescription)
     }
