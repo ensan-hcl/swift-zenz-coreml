@@ -171,6 +171,8 @@ func main() async {
     let tokenizer = await loadTokenizer()
     guard let tokenizer else { fatalError("tokenizer not found") }
     // ニホンゴ（Japanese in Katakana Form）→日本語（Japanese in Kanji form）
+    let start = Date()
     let predictedSentence = greedyPredict(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer)
     print(predictedSentence)
+    print("time:", Date().timeIntervalSince(start))
 }
