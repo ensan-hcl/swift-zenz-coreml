@@ -15,8 +15,8 @@ struct Tokenizer {
     init(vocabFile: String, configFile: String) {
         // 번들에서 파일 URL 가져오기
         // Get the file URLs from the bundle
-        let vocabURL = Bundle.main.url(forResource: vocabFile, withExtension: "json")
-        let configURL = Bundle.main.url(forResource: configFile, withExtension: "json")
+        let vocabURL = Bundle.module.url(forResource: vocabFile, withExtension: "json")
+        let configURL = Bundle.module.url(forResource: configFile, withExtension: "json")
         
         guard let vocabURL, let configURL else {
             self.vocab = [:]
