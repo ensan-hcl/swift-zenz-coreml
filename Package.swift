@@ -5,6 +5,14 @@ import PackageDescription
 
 let package = Package(
     name: "swift-zenz-coreml",
+    platforms: [
+        .iOS(.v15),
+        .macOS(.v12),
+        .macCatalyst(.v15),
+        .tvOS(.v15),
+        .watchOS(.v8),
+        .visionOS(.v1),
+    ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
@@ -16,7 +24,7 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "swift-zenz-coreml",
-            resources: [.copy("Resources")]
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "swift-zenz-coremlTests",

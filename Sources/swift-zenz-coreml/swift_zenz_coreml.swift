@@ -3,68 +3,133 @@
 import CoreML
 import Foundation
 
+// Tokenizer 구조체 정의
+// Define the Tokenizer struct
+struct Tokenizer {
+    let vocab: [String: Int]
+    let reverseVocab: [Int: String]
+    let config: [String: Any]
+
+    // 초기화
+    // Initializer
+    init(vocabFile: String, configFile: String) {
+        // 번들에서 파일 URL 가져오기
+        // Get the file URLs from the bundle
+        let vocabURL = Bundle.module.url(forResource: vocabFile, withExtension: "json")
+        let configURL = Bundle.module.url(forResource: configFile, withExtension: "json")
+        
+        guard let vocabURL, let configURL else {
+            self.vocab = [:]
+            self.reverseVocab = [:]
+            self.config = [:]
+            return
+        }
+        
+        // 파일 데이터를 가져오기
+        // Get the file data
+        let vocabData = try? Data(contentsOf: vocabURL)
+        let configData = try? Data(contentsOf: configURL)
+        
+        guard let vocabData, let configData else {
+            self.vocab = [:]
+            self.reverseVocab = [:]
+            self.config = [:]
+            return
+        }
+        
+        // JSON 디코딩
+        // Decode the JSON
+        self.vocab = (try? JSONDecoder().decode([String: Int].self, from: vocabData)) ?? [:]
+        self.reverseVocab = Dictionary(uniqueKeysWithValues: vocab.map { ($1, $0) })
+        self.config = (try? JSONSerialization.jsonObject(with: configData, options: [])) as? [String: Any] ?? [:]
+    }
+    
+    // 텍스트를 토큰화
+    // Encode the text
+    func encode(_ text: String) -> [Int] {
+        // 간단한 토크나이저 구현
+        // Simple tokenizer implementation
+        return text.split(separator: " ").compactMap { vocab[String($0)] }
+    }
+    
+    // 토큰을 텍스트로 디코딩
+    // Decode the tokens
+    func decode(_ tokens: [Int]) -> String {
+        // 역 vocab 사전 사용
+        // Use the reverse vocab dictionary
+        return tokens.compactMap { reverseVocab[$0] }.joined(separator: " ")
+    }
+}
+
+// CoreML 모델 로드 함수
+// Load the CoreML model
+func loadModel() -> zenz_v1? {
+    let config = MLModelConfiguration()
+    return try? zenz_v1(configuration: config)
+}
+
+// 예측 수행 함수
+// Perform prediction
+func predict(text: String, model: zenz_v1, tokenizer: Tokenizer) -> [String] {
+    // 텍스트를 토크나이저를 사용하여 인코딩
+    // Encode the input text using the tokenizer
+    let inputIDs = tokenizer.encode(text)
+    
+    // 입력을 위한 MLMultiArray 생성
+    // Create MLMultiArray for input
+    let inputArray = try? MLMultiArray(shape: [1, 16], dataType: .float32)
+    for (index, token) in inputIDs.enumerated() {
+        inputArray?[index] = NSNumber(value: token)
+    }
+    
+    // Attention mask 생성
+    // Create attention mask
+    let attentionMask = try? MLMultiArray(shape: [1, 16], dataType: .float32)
+    for i in 0..<inputIDs.count {
+        attentionMask?[i] = 1
+    }
+    
+    guard let inputArray, let attentionMask else { return [] }
+    // 모델 입력 생성
+    // Create model input
+    let input = zenz_v1Input(input_ids: inputArray, attention_mask: attentionMask)
+    
+    // 예측 수행
+    // Perform prediction
+    let output = try? model.prediction(input: input)
+    
+    // 출력 logits 디코딩
+    // Decode the output logits
+    let logits = output?.linear_0
+    
+    guard let logits else { return [] }
+
+    // logits에서 예측된 토큰 ID 추출
+    // Extract predicted token IDs from logits
+    var predictedTokenIDs = [[Int]]()
+    for i in 0..<logits.shape[1].intValue {
+        var logitValues = [Float]()
+        for j in 0..<logits.shape[2].intValue {
+            logitValues.append(logits[[0, i, j] as [NSNumber]].floatValue)
+        }
+        predictedTokenIDs.append(logitValues.indices.sorted(by: { logitValues[$0] > logitValues[$1] }))
+    }
+    
+    // 예측된 토큰 ID를 다시 텍스트로 디코딩
+    // Decode the predicted token IDs back to text
+    let predictedTexts = predictedTokenIDs.map { tokenizer.decode(Array($0.prefix(5))) }
+    
+    // 결과 출력
+    // Print the result
+    return predictedTexts
+}
+
 func main() {
-    // カスタムクラスの定義
-    class ModelInput: MLFeatureProvider {
-        var inputIds: MLMultiArray
-        var attentionMask: MLMultiArray
-
-        init(inputIds: MLMultiArray, attentionMask: MLMultiArray) {
-            self.inputIds = inputIds
-            self.attentionMask = attentionMask
-        }
-
-        var featureNames: Set<String> {
-            return ["input_ids", "attention_mask"]
-        }
-
-        func featureValue(for featureName: String) -> MLFeatureValue? {
-            if featureName == "input_ids" {
-                return MLFeatureValue(multiArray: inputIds)
-            }
-            if featureName == "attention_mask" {
-                return MLFeatureValue(multiArray: attentionMask)
-            }
-            return nil
-        }
-    }
-
-    guard let modelURL = Bundle.module.url(forResource: "Resources/zenz_v1", withExtension: "mlpackage") else {
-        fatalError("Model file not found")
-    }
-
-    do {
-        let compiledModelURL = try MLModel.compileModel(at: modelURL)
-        let model = try MLModel(contentsOf: compiledModelURL)
-
-        // 入力データの準備
-        let sequenceLength = 16 // モデルが期待するシーケンス長
-
-        let inputIds: [NSNumber] = Array(repeating: 0, count: sequenceLength) // 例: トークナイザーでエンコードされた入力ID
-        let attentionMask: [NSNumber] = Array(repeating: 1, count: sequenceLength) // 例: 対応するアテンションマスク
-
-        let input = try MLMultiArray(shape: [1, sequenceLength as NSNumber], dataType: .int32)
-        let mask = try MLMultiArray(shape: [1, sequenceLength as NSNumber], dataType: .int32)
-        for (index, value) in inputIds.enumerated() {
-            input[index] = value
-        }
-
-        for (index, value) in attentionMask.enumerated() {
-            mask[index] = value
-        }
-
-        // カスタムクラスのインスタンス作成
-        let modelInput = ModelInput(inputIds: input, attentionMask: mask)
-
-        // モデルの予測
-        let prediction = try model.prediction(from: modelInput)
-        print(prediction)
-        for key in prediction.featureNames {
-            print(key, prediction.featureValue(for: key))
-        }
-
-    } catch {
-        print("Error loading model: \(error)")
-    }
-
+    let model = loadModel()
+    
+    guard let model else { fatalError("model not found") }
+    let tokenizer = Tokenizer(vocabFile: "vocab", configFile: "tokenizer_config")
+    let predictedSentence = predict(text: "Example sentence", model: model, tokenizer: tokenizer)
+    
+    print(predictedSentence)
 }
