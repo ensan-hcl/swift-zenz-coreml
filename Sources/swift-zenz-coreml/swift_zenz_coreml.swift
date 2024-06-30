@@ -50,11 +50,13 @@ func predict(text: String, model: zenz_v1, tokenizer: Tokenizer) -> [String] {
     
     // 예측 수행
     // Perform prediction
-    let output = try! model.prediction(input: input)
+    let output = try? model.prediction(input: input)
     
     // 출력 logits 디코딩
     // Decode the output logits
-    let logits = output.linear_0
+    let logits = output?.linear_0
+    
+    guard let logits else { return [] }
 
     // logits에서 예측된 토큰 ID 추출
     // Extract predicted token IDs from logits
