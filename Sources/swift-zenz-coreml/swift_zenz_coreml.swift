@@ -15,19 +15,33 @@ struct Tokenizer {
     init(vocabFile: String, configFile: String) {
         // 번들에서 파일 URL 가져오기
         // Get the file URLs from the bundle
-        let vocabURL = Bundle.main.url(forResource: vocabFile, withExtension: "json")!
-        let configURL = Bundle.main.url(forResource: configFile, withExtension: "json")!
+        let vocabURL = Bundle.main.url(forResource: vocabFile, withExtension: "json")
+        let configURL = Bundle.main.url(forResource: configFile, withExtension: "json")
+        
+        guard let vocabURL, let configURL else {
+            self.vocab = [:]
+            self.reverseVocab = [:]
+            self.config = [:]
+            return
+        }
         
         // 파일 데이터를 가져오기
         // Get the file data
-        let vocabData = try! Data(contentsOf: vocabURL)
-        let configData = try! Data(contentsOf: configURL)
+        let vocabData = try? Data(contentsOf: vocabURL)
+        let configData = try? Data(contentsOf: configURL)
+        
+        guard let vocabData, let configData else {
+            self.vocab = [:]
+            self.reverseVocab = [:]
+            self.config = [:]
+            return
+        }
         
         // JSON 디코딩
         // Decode the JSON
-        self.vocab = try! JSONDecoder().decode([String: Int].self, from: vocabData)
+        self.vocab = (try? JSONDecoder().decode([String: Int].self, from: vocabData)) ?? [:]
         self.reverseVocab = Dictionary(uniqueKeysWithValues: vocab.map { ($1, $0) })
-        self.config = try! JSONSerialization.jsonObject(with: configData, options: []) as! [String: Any]
+        self.config = (try? JSONSerialization.jsonObject(with: configData, options: [])) as? [String: Any] ?? [:]
     }
     
     // 텍스트를 토큰화
@@ -82,11 +96,13 @@ func predict(text: String, model: zenz_v1, tokenizer: Tokenizer) -> [String] {
     
     // 예측 수행
     // Perform prediction
-    let output = try! model.prediction(input: input)
+    let output = try? model.prediction(input: input)
     
     // 출력 logits 디코딩
     // Decode the output logits
-    let logits = output.linear_0
+    let logits = output?.linear_0
+    
+    guard let logits else { return [] }
 
     // logits에서 예측된 토큰 ID 추출
     // Extract predicted token IDs from logits
