@@ -11,6 +11,6 @@ git clone https://github.com/ensan-hcl/swift-zenz-coreml --recursive
 ## Run
 
 ```bash
-xcodebuild -scheme swift-zenz-coreml -destination "platform=macOS,name=Any Mac" -configuration Release test
+xcodebuild -scheme swift-zenz-coreml -destination "platform=macOS,name=Any Mac" test
 ```
 
