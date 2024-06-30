@@ -15,8 +15,8 @@ struct Tokenizer {
     init(vocabFile: String, configFile: String) {
         // 번들에서 파일 URL 가져오기
         // Get the file URLs from the bundle
-        let vocabURL = Bundle.main.url(forResource: vocabFile, withExtension: "json")!
-        let configURL = Bundle.main.url(forResource: configFile, withExtension: "json")!
+        let vocabURL = Bundle.module.url(forResource: vocabFile, withExtension: "json")!
+        let configURL = Bundle.module.url(forResource: configFile, withExtension: "json")!
         
         // 파일 데이터를 가져오기
         // Get the file data
@@ -35,7 +35,7 @@ struct Tokenizer {
     func encode(_ text: String) -> [Int] {
         // 간단한 토크나이저 구현
         // Simple tokenizer implementation
-        return text.split(separator: " ").compactMap { vocab[String($0)] }
+        return text.compactMap { vocab[String($0)] }
     }
     
     // 토큰을 텍스트로 디코딩
@@ -113,7 +113,7 @@ func main() {
     
     guard let model else { fatalError("model not found") }
     let tokenizer = Tokenizer(vocabFile: "vocab", configFile: "tokenizer_config")
-    let predictedSentence = predict(text: "Example sentence", model: model, tokenizer: tokenizer)
-    
+    let predictedSentence = predict(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer)
+
     print(predictedSentence)
 }
