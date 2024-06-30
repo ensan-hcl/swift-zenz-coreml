@@ -8,3 +8,9 @@ Sample repository using [Skyline-23/zenz-CoreML](https://github.com/Skyline-23/z
 git clone https://github.com/ensan-hcl/swift-zenz-coreml --recursive
 ```
 
+## Run
+
+```bash
+swift test
+```
+
