@@ -26,6 +26,68 @@ func loadTokenizer() async -> Tokenizer? {
 
 // 예측 수행 함수
 // Perform prediction
+func predict(text: String, model: zenz_v1, tokenizer: Tokenizer) -> [String] {
+    // 텍스트를 토크나이저를 사용하여 인코딩
+    // Encode the input text using the tokenizer
+    let inputIDs = tokenizer.encode(text: text)
+    print("inputIDs", text, inputIDs)
+
+    // 입력을 위한 MLMultiArray 생성
+    // Create MLMultiArray for input
+    let inputArray = try? MLMultiArray(shape: [1, 16], dataType: .float32)
+    for (index, token) in inputIDs.enumerated() {
+        inputArray?[index] = NSNumber(value: token)
+    }
+
+    // Attention mask 생성
+    // Create attention mask
+    let attentionMask = try? MLMultiArray(shape: [1, 16], dataType: .float32)
+    for i in 0..<inputIDs.count {
+        attentionMask?[i] = 1
+    }
+
+    guard let inputArray, let attentionMask else { return [] }
+    // 모델 입력 생성
+    // Create model input
+    let input = zenz_v1Input(input_ids: inputArray, attention_mask: attentionMask)
+
+    // 예측 수행
+    // Perform prediction
+    let output = try? model.prediction(input: input)
+
+    // 출력 logits 디코딩
+    // Decode the output logits
+    let logits = output?.linear_0
+
+    guard let logits else { return [] }
+
+    // logits에서 예측된 토큰 ID 추출
+    // Extract predicted token IDs from logits
+    var predictedTokenIDs = [[Int]]()
+    for batchID in 0..<logits.shape[0].intValue {
+        predictedTokenIDs.append([])
+        for i in 0..<logits.shape[1].intValue {
+            var logitValues = [Float]()
+            // get argMax
+            let maxId = (0..<6000).max {
+                logits[[batchID, i, $0] as [NSNumber]].floatValue < logits[[0, i, $1] as [NSNumber]].floatValue
+            } ?? 0
+            predictedTokenIDs[batchID].append(maxId)
+        }
+    }
+
+    // 예측된 토큰 ID를 다시 텍스트로 디코딩
+    // Decode the predicted token IDs back to text
+    print(predictedTokenIDs)
+    let predictedTexts = predictedTokenIDs.map { tokenizer.decode(tokens: $0) }
+
+    // 결과 출력
+    // Print the result
+    return predictedTexts
+}
+
+// 예측 수행 함수
+// Perform prediction
 @available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, *)
 func predict(text: String, model: zenz_v1, tokenizer: Tokenizer) async -> [String] {
     // 텍스트를 토크나이저를 사용하여 인코딩
@@ -87,66 +149,17 @@ func predict(text: String, model: zenz_v1, tokenizer: Tokenizer) async -> [Strin
     return predictedTexts
 }
 
-// 예측 수행 함수
-// Perform prediction
-func predict(text: String, model: zenz_v1, tokenizer: Tokenizer) -> [String] {
-    // 텍스트를 토크나이저를 사용하여 인코딩
-    // Encode the input text using the tokenizer
-    let inputIDs = tokenizer.encode(text: text)
-    print("inputIDs", text, inputIDs)
-
-    // 입력을 위한 MLMultiArray 생성
-    // Create MLMultiArray for input
-    let inputArray = try? MLMultiArray(shape: [1, 16], dataType: .float32)
-    for (index, token) in inputIDs.enumerated() {
-        inputArray?[index] = NSNumber(value: token)
-    }
-
-    // Attention mask 생성
-    // Create attention mask
-    let attentionMask = try? MLMultiArray(shape: [1, 16], dataType: .float32)
-    for i in 0..<inputIDs.count {
-        attentionMask?[i] = 1
-    }
-
-    guard let inputArray, let attentionMask else { return [] }
-    // 모델 입력 생성
-    // Create model input
-    let input = zenz_v1Input(input_ids: inputArray, attention_mask: attentionMask)
-
-    // 예측 수행
-    // Perform prediction
-    let output = try? model.prediction(input: input)
-
-    // 출력 logits 디코딩
-    // Decode the output logits
-    let logits = output?.linear_0
-
-    guard let logits else { return [] }
-
-    // logits에서 예측된 토큰 ID 추출
-    // Extract predicted token IDs from logits
-    var predictedTokenIDs = [[Int]]()
-    for batchID in 0..<logits.shape[0].intValue {
-        predictedTokenIDs.append([])
-        for i in 0..<logits.shape[1].intValue {
-            var logitValues = [Float]()
-            // get argMax
-            let maxId = (0..<6000).max {
-                logits[[batchID, i, $0] as [NSNumber]].floatValue < logits[[0, i, $1] as [NSNumber]].floatValue
-            } ?? 0
-            predictedTokenIDs[batchID].append(maxId)
+@available(macOS, deprecated: 10.14, message: "Use newer API predict(text:model:tokenizer) async")
+@available(iOS, deprecated: 16.0, message: "Use newer API predict(text:model:tokenizer) async")
+@available(tvOS, deprecated: 16.0, message: "Use newer API predict(text:model:tokenizer) async")
+@available(watchOS, deprecated: 9.0, message: "Use newer API predict(text:model:tokenizer) async")
+func predictDispatch(text: String, model: zenz_v1, tokenizer: Tokenizer, qos: DispatchQoS) async -> [String] {
+    return await withCheckedContinuation { continuation in
+        DispatchQueue.global(qos: qos.qosClass).async {
+            let result = predict(text: text, model: model, tokenizer: tokenizer)
+            continuation.resume(returning: result)
         }
     }
-
-    // 예측된 토큰 ID를 다시 텍스트로 디코딩
-    // Decode the predicted token IDs back to text
-    print(predictedTokenIDs)
-    let predictedTexts = predictedTokenIDs.map { tokenizer.decode(tokens: $0) }
-
-    // 결과 출력
-    // Print the result
-    return predictedTexts
 }
 
 // Greedy search를 사용하여 예측 수행
@@ -308,6 +321,19 @@ func greedyPredict(text: String, model: zenz_v1, tokenizer: Tokenizer) async -> 
     return predictedText
 }
 
+@available(macOS, deprecated: 10.14, message: "Use newer API greedyPredict(text:model:tokenizer) async")
+@available(iOS, deprecated: 16.0, message: "Use newer API greedyPredict(text:model:tokenizer) async")
+@available(tvOS, deprecated: 16.0, message: "Use newer API greedyPredict(text:model:tokenizer) async")
+@available(watchOS, deprecated: 9.0, message: "Use newer API greedyPredict(text:model:tokenizer) async")
+func greedyPredictDispatch(text: String, model: zenz_v1, tokenizer: Tokenizer, qos: DispatchQoS) async -> String {
+    return await withCheckedContinuation { continuation in
+        DispatchQueue.global(qos: qos.qosClass).async {
+            let result = greedyPredict(text: text, model: model, tokenizer: tokenizer)
+            continuation.resume(returning: result)
+        }
+    }
+}
+
 func main() async {
     let model = loadModel()
     guard let model else { fatalError("model not found") }
@@ -316,29 +342,39 @@ func main() async {
     do {
         // ニホンゴ（Japanese in Katakana Form）→日本語（Japanese in Kanji form）
         if #available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, *) {
-            let start = Date()
-            let predictedSentence = await greedyPredict(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer)
-            print(predictedSentence)
-            print("time:", Date().timeIntervalSince(start))
+            let startAsync = Date()
+            let predictedSentenceAsync = await greedyPredict(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer)
+            print(predictedSentenceAsync)
+            print("Global thread time:", Date().timeIntervalSince(startAsync))
         } else {
-            let start = Date()
-            let predictedSentence = greedyPredict(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer)
-            print(predictedSentence)
-            print("time:", Date().timeIntervalSince(start))
+            let startAsync = Date()
+            let predictedSentenceAsync = await greedyPredictDispatch(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer, qos: .userInitiated)
+            print(predictedSentenceAsync)
+            print("Global thread time:", Date().timeIntervalSince(startAsync))
         }
+        
+        let start = Date()
+        let predictedSentence = greedyPredict(text: "\u{EE00}ニホンゴ\u{EE01}", model: model, tokenizer: tokenizer)
+        print(predictedSentence)
+        print("Main thread time:", Date().timeIntervalSince(start))
     }
     do {
         // カンコクゴヲベンキョウスル（'Study Korean' in Katakana Form）→韓国語を勉強する（'Study Korean' in Kanji form）
         if #available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, *) {
-            let start = Date()
-            let predictedSentence = await greedyPredict(text: "\u{EE00}カンコクゴヲベンキョウスル\u{EE01}", model: model, tokenizer: tokenizer)
-            print(predictedSentence)
-            print("time:", Date().timeIntervalSince(start))
+            let startAsync = Date()
+            let predictedSentenceAsnyc = await greedyPredict(text: "\u{EE00}カンコクゴヲベンキョウスル\u{EE01}", model: model, tokenizer: tokenizer)
+            print(predictedSentenceAsnyc)
+            print("Global thread time:", Date().timeIntervalSince(startAsync))
         } else {
-            let start = Date()
-            let predictedSentence = greedyPredict(text: "\u{EE00}カンコクゴヲベンキョウスル\u{EE01}", model: model, tokenizer: tokenizer)
-            print(predictedSentence)
-            print("time:", Date().timeIntervalSince(start))
+            let startAsync = Date()
+            let predictedSentenceAsync = await greedyPredictDispatch(text: "\u{EE00}カンコクゴヲベンキョウスル\u{EE01}", model: model, tokenizer: tokenizer, qos: .userInitiated)
+            print(predictedSentenceAsync)
+            print("Global thread time:", Date().timeIntervalSince(startAsync))
         }
+        
+        let start = Date()
+        let predictedSentence = greedyPredict(text: "\u{EE00}カンコクゴヲベンキョウスル\u{EE01}", model: model, tokenizer: tokenizer)
+        print(predictedSentence)
+        print("Main thread time:", Date().timeIntervalSince(start))
     }
 }
